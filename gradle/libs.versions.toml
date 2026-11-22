@@ -15,7 +15,7 @@ composeUiTooling = "1.7.2"
 wearToolingPreview = "1.0.0"
 coreSplashscreen = "1.2.0"
 room = "2.8.5"
-ksp = "2.2.10-2.0.2"
+ksp = "2.3.12"
 navigationCompose = "2.10.2"
 
 [libraries]
