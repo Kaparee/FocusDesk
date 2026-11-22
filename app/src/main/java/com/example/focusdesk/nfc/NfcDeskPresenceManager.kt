@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.IOException
 import kotlinx.coroutines.Job
+import kotlin.math.max
 
 class NfcDeskPresenceManager(
     private val activity: Activity,
@@ -21,11 +22,16 @@ class NfcDeskPresenceManager(
 
     private var presenceJob: Job? = null
     private var activeNfcA: NfcA? = null
+    @Volatile private var lastSeenMillis: Long = 0L
     private var isMonitoringActive = false
     private var activeSessionId: Long = -1L
 
+    private var currentTag: Tag? = null
+
     fun setActiveSessionId(sessionId: Long) {
         activeSessionId = sessionId
+        isMonitoringActive = true
+        if (currentTag != null) startPresenceCheckLoop(currentTag!!, sessionId)
     }
 
     fun startScanning() {
@@ -41,7 +47,6 @@ class NfcDeskPresenceManager(
 
     fun stopScanning() {
         isMonitoringActive = false
-        activeSessionId = -1L
         presenceJob?.cancel()
         presenceJob = null
         activeNfcA?.close()
@@ -51,37 +56,76 @@ class NfcDeskPresenceManager(
 
     private fun handleTagDiscovered(tag: Tag) {
         val uidHex = tag.id.joinToString(":") { "%02X".format(it) }
-        onTagScanned?.invoke(uidHex)
-
-        if (activeSessionId < 1) return
-
-        isMonitoringActive = true
-        startPresenceCheckLoop(tag, activeSessionId)
+        currentTag = tag
+        if (isMonitoringActive && activeSessionId > 0) {
+            val freshNfcA = NfcA.get(tag) ?: return
+            try {
+                if (!freshNfcA.isConnected) freshNfcA.connect()
+                activeNfcA = freshNfcA
+                lastSeenMillis = System.currentTimeMillis()
+            } catch (_: Exception) {}
+        } else {
+            onTagScanned?.invoke(uidHex)
+        }
     }
 
     fun startPresenceCheckLoop(tag: Tag, sessionId: Long) {
-        val nfcA = NfcA.get(tag)
+        val nfcA = NfcA.get(tag) ?: return
         activeNfcA = nfcA
         presenceJob?.cancel()
         presenceJob = CoroutineScope(Dispatchers.IO).launch {
             try {
+                lastSeenMillis = System.currentTimeMillis()
+                val gracePeriodMillis = 2000L
                 while (isMonitoringActive) {
-                    if (!nfcA.isConnected) nfcA.connect()
-                    nfcA.transceive(byteArrayOf(0x30.toByte(), 0x00.toByte()))
-                    delay(1000)
+                    val nfc = activeNfcA
+                    try {
+                        if (nfc == null) {
+                            throw IOException("Brak aktywnego taga NFC")
+                        }
+                        if (!nfc.isConnected) {
+                            nfc.connect()
+                        }
+                        nfc.transceive(byteArrayOf(0x30.toByte(), 0x00.toByte()))
+                        lastSeenMillis = System.currentTimeMillis()
+                        delay(1000)
+                    } catch (e: Exception) {
+                        val timeSinceLastSeen = System.currentTimeMillis() - lastSeenMillis
+                        if (timeSinceLastSeen >= gracePeriodMillis) {
+                            isMonitoringActive = false
+                            CoroutineScope(Dispatchers.Main).launch {
+                                onPhoneLiftedFromDesk?.invoke(sessionId)
+                            }
+                            break
+                        }
+                        delay(300)
+                    }
                 }
-            } catch (e: IOException) {
-                isMonitoringActive = false
-                CoroutineScope(Dispatchers.Main).launch { onPhoneLiftedFromDesk?.invoke(sessionId) }
+            } catch (e: Exception) {
+                if (isMonitoringActive) {
+                    CoroutineScope(Dispatchers.Main).launch { onPhoneLiftedFromDesk?.invoke(sessionId) }
+                    isMonitoringActive = false
+                }
                 return@launch
             } finally {
-                nfcA.close()
-                if (activeNfcA == nfcA) {
+                try {
+                    activeNfcA?.close()
                     activeNfcA = null
-                }
-                presenceJob = null
-                isMonitoringActive = false
+                    presenceJob = null
+                    isMonitoringActive = false
+                } catch (_: Exception) {}
             }
         }
+    }
+
+    fun clearActiveSession() {
+        isMonitoringActive = false
+        presenceJob?.cancel()
+        presenceJob = null
+        try {
+            activeNfcA?.close()
+            activeNfcA = null
+        } catch (e: Exception){}
+        activeSessionId = -1L
     }
 }
