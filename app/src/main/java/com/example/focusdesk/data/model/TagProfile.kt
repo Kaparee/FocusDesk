@@ -10,6 +10,7 @@ data class TagProfile(
     val breakDurationMinutes: Int,
     val dndMode: DndRuleMode,
     val muteMedia: Boolean,
+    val totalCycles: Int,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 )

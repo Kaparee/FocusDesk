@@ -9,7 +9,7 @@ import com.example.focusdesk.data.Converters
 import android.content.Context
 
 
-@Database(entities = [TagProfile::class, FocusSession::class], version = 1, exportSchema = false)
+@Database(entities = [TagProfile::class, FocusSession::class], version = 2, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class FocusDeskDatabase : RoomDatabase() {
     abstract fun tagProfileDao(): TagProfileDAO
@@ -25,7 +25,9 @@ abstract class FocusDeskDatabase : RoomDatabase() {
                     context.applicationContext,
                     FocusDeskDatabase::class.java,
                     "focus_desk_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration(false)
+                    .build()
                 INSTANCE = instance
                 return instance
             }
