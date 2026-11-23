@@ -8,7 +8,9 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,14 +18,18 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,6 +54,7 @@ class MainActivity : ComponentActivity() {
     var dndSettingsPromptShown = false
     var exactAlarmSettingsPromptShown = false
     var nfcSettingsPromptShown = false
+    var isNfcEnabled by mutableStateOf(true)
 
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
@@ -96,8 +103,13 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text("FocusDesk")
-                        if (state.status == FocusStatus.IDLE) Text("Status: Połóż telefon na tagu NFC")
+                        if (state.status == FocusStatus.IDLE) {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            Text("Status: Połóż telefon na tagu NFC")
+                        }
                         if (state.status == FocusStatus.FOCUS_ACTIVE) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            BackHandler(enabled = true) { }
                             val minutes = state.remainingTimeSeconds / 60
                             val seconds = state.remainingTimeSeconds % 60
                             Text("Profil: ${state.profileName}", color = Color.LightGray)
@@ -123,9 +135,11 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         if (state.status == FocusStatus.BREAK_ACTIVE) {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                             val minutes = state.remainingTimeSeconds / 60
                             val seconds = state.remainingTimeSeconds % 60
                             Text("Czas na przerwę! Odpocznij.")
+                            Text("💧 Wypij szklankę wody i rozprostuj plecy!", color = Color.Blue)
                             if (state.remainingTimeSeconds >= 10) {
                                 Text(
                                     "Czas na relaks: ${"%02d:%02d".format(minutes, seconds)}",
@@ -138,11 +152,14 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
-                        if (state.status == FocusStatus.ABORTED) Text(
-                            "SESJA PRZERWANA - Telefon został podniesiony.",
-                            color = Color.Red
-                        )
+                        if (state.status == FocusStatus.ABORTED) {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            Text("SESJA PRZERWANA - Telefon został podniesiony.",
+                                color = Color.Red
+                            )
+                        }
                         if (state.status == FocusStatus.WAITING_TO_RESUME) {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                             Text("Przerwa minęła! Odłóż telefon na biurko, aby zacząć kolejny blok.")
                             if (state.overtimeSeconds > 0) {
                                 val minutes = state.overtimeSeconds / 60

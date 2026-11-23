@@ -73,9 +73,9 @@ class FocusAlarmReceiver : BroadcastReceiver() {
 //                delay(400)
 //            }
 //        }
-            val timings = longArrayOf(800, 300, 240, 200, 240, 300, 3000, 240, 300, 3000)
+            val timings = longArrayOf(800, 300, 240, 200, 240, 300, 2000)
 
-            val amplitudes = intArrayOf(255, 0, 200, 0, 200, 0, 255, 200, 0, 255)
+            val amplitudes = intArrayOf(255, 0, 200, 0, 200, 0, 255)
 
             val effect =
                 if (vibrator.hasAmplitudeControl()) {
